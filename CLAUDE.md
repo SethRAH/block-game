@@ -2,7 +2,7 @@
 
 An ad-free, kid-friendly block-placement puzzle PWA (genre: Block Blast / 1010! /
 Woodoku), built for a 6-year-old. No ads, no accounts, no links out, no social
-features, single player, offline. See the design doc for product detail.
+features, single player, offline. See the design doc (`docs/design.md`) for product detail.
 
 ## Stack
 
@@ -29,7 +29,7 @@ The single most important rule. Three layers:
   animations, sound, haptics. Reads from and drives `core`.
 - **`src/pwa/`** — local persistence (localStorage), install handling.
 
-Why: the design doc makes three promises that are only enforceable if the logic is
+Why: the design doc (`docs/design.md`) makes three promises that are only enforceable if the logic is
 isolated and tested (see `tests/invariants.test.ts`):
 1. every generated level is solvable,
 2. every refilled tray contains at least one piece that fits (the "no game over" guarantee),
