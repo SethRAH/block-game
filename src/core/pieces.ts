@@ -38,6 +38,15 @@ const FAMILIES: ReadonlyArray<{
 /** Number of distinct palette indices used by pieces (1..PALETTE_SIZE). */
 export const PALETTE_SIZE = 8;
 
+/**
+ * The reserved board-cell value for a level's GOAL tile (a pre-placed tile the
+ * player must clear). It sits just past the piece palette, so it can never
+ * collide with a placed piece's color. To the rules it is an ordinary filled
+ * cell: nothing can be placed on it, it counts toward a full line, and
+ * clearing that line zeroes it like any other cell.
+ */
+export const GOAL = PALETTE_SIZE + 1;
+
 function parseArt(art: readonly string[]): Coord[] {
   const cells: Coord[] = [];
   art.forEach((row, r) => {

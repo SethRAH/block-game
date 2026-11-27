@@ -12,10 +12,12 @@
  *    rewriting core. Per the design doc (docs/design.md) a level is a seeded
  *    starting board of pre-placed tiles whose goal is to clear them all. A
  *    level reuses this exact `GameState` shape and the `applyMove` /
- *    `swapTray` signatures: it just starts from a non-empty board. A win/goal
- *    notion (e.g. an optional field on `GameState`, or a separate
- *    `isLevelComplete(state)` predicate) will be added ADDITIVELY later — no
- *    existing field or signature changes. Levels are not built now.
+ *    `swapTray` signatures: it just starts from a non-empty board. The goal
+ *    is ADDITIVE: goal tiles are the reserved cell value {@link GOAL} in the
+ *    board itself, the win check is {@link isLevelComplete}, and a level's
+ *    generator tuning rides on an optional trailing {@link GeneratorOptions}
+ *    argument to `applyMove` / `swapTray`. No existing field or signature
+ *    changed; endless mode passes no options and behaves exactly as before.
  *  • `GameState` is plain JSON (structurally cloneable / JSON round-trippable):
  *    no class instances, no functions, no Maps — so it saves to localStorage,
  *    restores after a reload, and snapshots cheaply for undo.
@@ -37,8 +39,16 @@
 // lower modules can import them without a cycle; they are re-exported here.
 export { BOARD_SIZE, CELL_COUNT, TRAY_SIZE } from './constants.ts';
 
+// GOAL (the reserved goal-tile cell value) lives in pieces.ts beside
+// PALETTE_SIZE, which it is defined against; re-exported here.
+export { GOAL } from './pieces.ts';
+
+// The per-game generator options (generosity, goal-line bias). Endless mode
+// passes none; a level derives its own from its level number.
+export type { GeneratorOptions } from './generator.ts';
+
 import { TRAY_SIZE } from './constants.ts';
-import { drawTray, redrawTray } from './generator.ts';
+import { drawTray, redrawTray, type GeneratorOptions } from './generator.ts';
 import {
   canPlace,
   clearLines,
@@ -71,6 +81,12 @@ export function scoreFor(cells: number, lines: number): number {
  * concrete CSS color: the UI maps index → color, so color themes can change
  * without migrating saved games, while settled-block colors still survive
  * reload / undo / replay. Cleared cells go back to `0`.
+ *
+ * One value past the palette is reserved: {@link GOAL} (`PALETTE_SIZE + 1`)
+ * marks a level's goal tile. It is a filled cell to every rule (it blocks
+ * placement, counts toward a full line, and clears with its line); storing it
+ * IN the board — rather than in a separate mask — means it survives
+ * `applyMove`, undo and save/reload with no extra state.
  */
 export type Cell = number;
 
@@ -213,6 +229,11 @@ export function newGame(seed: number): GameState {
  *
  * On failure returns `{ ok: false, error }` and the caller keeps its old state.
  *
+ * `gen` tunes the refill draw (see {@link GeneratorOptions}). Omitted = the
+ * endless defaults, identical to the behavior before levels existed. For
+ * reproducibility a game must pass the SAME `gen` on every move: a level
+ * derives it from its level number, so it never needs saving.
+ *
  * ── Scoring (scoreDelta) ──
  *   + points per cell of the placed piece,
  *   + a per-line bonus for each row/column cleared,
@@ -220,7 +241,13 @@ export function newGame(seed: number): GameState {
  * Exact constants live with the implementation and may be tuned. Nothing ever
  * subtracts score.
  */
-export function applyMove(state: GameState, slot: number, r: number, c: number): ApplyMoveResult {
+export function applyMove(
+  state: GameState,
+  slot: number,
+  r: number,
+  c: number,
+  gen: GeneratorOptions = {},
+): ApplyMoveResult {
   if (!Number.isInteger(slot) || slot < 0 || slot >= TRAY_SIZE) return { ok: false, error: 'invalid-slot' };
   const piece = state.tray[slot];
   if (!piece) return { ok: false, error: 'empty-slot' };
@@ -237,7 +264,7 @@ export function applyMove(state: GameState, slot: number, r: number, c: number):
   let rngState = state.rngState;
   if (tray.every((p) => p === null)) {
     const rng = createRng(state.seed, state.rngState);
-    tray = drawTray(board, rng);
+    tray = drawTray(board, rng, gen);
     rngState = rng.getState();
   }
 
@@ -319,9 +346,31 @@ export function isStuck(state: GameState): boolean {
  *
  * It is intended for when {@link isStuck} is true, but is well-defined at any
  * time (it never fails).
+ *
+ * `gen` is the same per-game generator tuning as {@link applyMove}'s; omitted
+ * = the endless defaults.
  */
-export function swapTray(state: GameState): GameState {
+export function swapTray(state: GameState, gen: GeneratorOptions = {}): GameState {
   const rng = createRng(state.seed, state.rngState);
-  const tray = redrawTray(state.board, state.tray, rng);
+  const tray = redrawTray(state.board, state.tray, rng, gen);
   return { ...state, tray, rngState: rng.getState() };
 }
+
+// ── Levels (additive) ────────────────────────────────────────────────────────
+
+/**
+ * Version of the level GENERATOR. A level number must reproduce the exact same
+ * level forever, so anything that would change a generated level (the
+ * algorithm, its parameters, the piece catalog it draws from) must keep
+ * existing level numbers identical — golden snapshots enforce this. A saved
+ * in-progress level records the version it was generated with; a mismatch
+ * means the save cannot be trusted to match its number and is discarded.
+ */
+export const LEVEL_GEN_VERSION = 1;
+
+/**
+ * True when the board holds no {@link GOAL} tile — every goal has been
+ * cleared and the level is won. Pure; a board that never had goals (endless)
+ * is trivially "complete", so callers only ask it of a level.
+ */
+export declare function isLevelComplete(state: GameState): boolean;

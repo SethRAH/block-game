@@ -7,6 +7,12 @@
  * lines. That parameter is the future difficulty lever: 0 = plain uniform
  * draw (still with the fit guarantee), higher = kinder.
  *
+ * Levels add a second, independent lever, `goalBias`: extra weight for pieces
+ * that would complete a line containing a GOAL tile, so a level's draws steer
+ * the player toward clearing its goals. It defaults to 0, and a board with no
+ * goal tiles (endless) is unaffected by it either way — so with no options
+ * passed, draws are exactly what they were before levels existed.
+ *
  * All randomness comes from the passed-in `Rng`, and the number of RNG calls
  * depends only on (board, tray, rng state), so draws are reproducible.
  */
@@ -16,22 +22,38 @@ import { canPlace, fitsAnywhere } from './grid.ts';
 import { DOT, PIECES } from './pieces.ts';
 import type { Rng } from './rng.ts';
 
+/**
+ * Per-game tuning of the draw. Plain JSON-able data. Endless mode passes none
+ * (all defaults); a level derives its own from its level number. A game must
+ * use the same options on every draw for its trays to be reproducible.
+ */
 export interface GeneratorOptions {
   /**
    * How strongly to favor pieces that fit and nearly complete lines.
    * 0 = uniform. Default {@link DEFAULT_GENEROSITY}.
    */
   readonly generosity?: number;
+  /**
+   * Extra helpfulness for each line a placement would complete that contains
+   * at least one GOAL tile (on top of that line's normal credit). 0 = no goal
+   * preference. Default {@link DEFAULT_GOAL_BIAS}. Only matters on boards
+   * that hold goal tiles.
+   */
+  readonly goalBias?: number;
 }
 
 export const DEFAULT_GENEROSITY = 1;
+export const DEFAULT_GOAL_BIAS = 0;
 
 /**
  * How helpful `piece` could be on `board`: 0 if it does not fit; otherwise
  * 1 + the best, over all legal placements, of (lines it would complete +
- * 0.25 × lines it would leave one cell short of full).
+ * 0.25 × lines it would leave one cell short of full + `goalBias` × completed
+ * lines that contain a GOAL tile). With `goalBias` 0 (the default) this is
+ * exactly the endless scoring.
  */
-export function helpfulness(board: Board, piece: Piece): number {
+export function helpfulness(board: Board, piece: Piece, goalBias: number = DEFAULT_GOAL_BIAS): number {
+  void goalBias; // goal-line bias lands after the API freeze
   // Empty-cell counts per row / column, so each placement is scored without
   // copying the board.
   const rowEmpty = new Array<number>(BOARD_SIZE).fill(0);
