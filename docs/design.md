@@ -21,7 +21,7 @@ https://sethrah.github.io/block-game/. What it does today:
 | PWA | Installable, full screen (`standalone`), works offline, updates automatically. |
 
 **Not built yet:**
-- **Levels and stages, the planned next step.** The core API was shaped so a seeded level (a starting board of pre-placed tiles) can be added without rewriting existing code. The "every level is solvable" test is a placeholder (`it.todo`) until then.
+- **Levels and stages, the planned next step.** Level *generation* is now in core (`src/core/levels.ts`, no UI yet). Each level number gives the same seeded board: 1–4 parallel target lines holding goal tiles, nearly full, with three piece-shaped holes. The first tray is exactly the three hole pieces, so every level is solvable by construction. Stages are 5 levels that go easy → harder, and the next stage starts easy again. Tests check that levels 1–30 finish quickly for a simulated player (median ≤ 20 placements, ≤ 35 in 90% of runs) and pin them with golden snapshots. Still to build: the level map, goal tiles on screen, stars and celebrations.
 - Stage rewards, the level map, haptics, particles, bigger combo effects, full sound design, and theming.
 
 The sections below are the original design (v0.1), kept as written. Notes in

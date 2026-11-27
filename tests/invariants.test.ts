@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { createHistory, createRng, isStuck, newGame, parseHistory, swapTray, type History } from '../src/core/index.ts';
+import {
+  applyMove,
+  createHistory,
+  createLevel,
+  createRng,
+  isLevelComplete,
+  isStuck,
+  levelPosition,
+  LEVELS_PER_STAGE,
+  newGame,
+  parseHistory,
+  swapTray,
+  type History,
+} from '../src/core/index.ts';
 import { act, anyFits, chooseAction, randomScript } from './helpers.ts';
+import { playLevel, quantile } from './sim-player.ts';
 
 /**
  * The design doc's fail-safe promises (docs/design.md), fuzzed over many seeds
@@ -12,9 +26,49 @@ const STEPS = 150;
 const FUZZ_TIMEOUT_MS = 30_000;
 
 describe('generator invariants (design-doc promises)', () => {
-  // Build levels backward from a solved board, or verify with the solver, so a
-  // generated level always has at least one solution. Levels don't exist yet.
-  it.todo('every generated level is solvable');
+  // Levels are solvable by construction: the first tray is exactly the pieces
+  // that fill the target lines' holes. Check that built-in solution directly.
+  it('every generated level is solvable: its first tray, dropped in its holes, wins', () => {
+    for (let n = 1; n <= 200; n++) {
+      const level = createLevel(n);
+      let s = level.start;
+      expect(isLevelComplete(s)).toBe(false);
+      for (const m of level.solution) {
+        const res = applyMove(s, m.slot, m.r, m.c, level.gen);
+        if (!res.ok) throw new Error(`level ${n}: solution move rejected (${res.error})`);
+        s = res.result.state;
+      }
+      expect(isLevelComplete(s)).toBe(true);
+    }
+  });
+
+  // The real "levels don't drag" guarantee. A simulated young player (half the
+  // time she makes the best-looking move, otherwise a random one; swaps when
+  // stuck) plays each of levels 1–30 many times; every level must finish in a
+  // median of <= 20 placements and <= 35 in 90% of runs. Fully seeded.
+  it('levels 1–30 finish quickly for a simulated player (median <= 20, p90 <= 35)', () => {
+    const RUNS = 60;
+    const FOCUS = 0.5;
+    const firstOfStage: number[] = [];
+    const lastOfStage: number[] = [];
+    for (let n = 1; n <= 30; n++) {
+      const level = createLevel(n);
+      const runs = Array.from({ length: RUNS }, (_, i) =>
+        playLevel(level.start, level.gen, 90_000 + n * 1_000 + i, FOCUS),
+      );
+      const median = quantile(runs, 0.5);
+      const p90 = quantile(runs, 0.9);
+      expect({ n, median: median <= 20, p90: p90 <= 35 }).toEqual({ n, median: true, p90: true });
+      const mean = runs.reduce((a, b) => a + b, 0) / RUNS;
+      const { level: inStage } = levelPosition(n);
+      if (inStage === 1) firstOfStage.push(mean);
+      if (inStage === LEVELS_PER_STAGE) lastOfStage.push(mean);
+    }
+    // Difficulty ramps within a stage: on average a stage's last level takes
+    // longer than its first.
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(avg(lastOfStage)).toBeGreaterThan(avg(firstOfStage));
+  }, FUZZ_TIMEOUT_MS);
 
   // The "no game over" guarantee: the player is never left without a way on.
   it('after every move a piece fits OR isStuck is true, and swapTray always produces a fit', () => {

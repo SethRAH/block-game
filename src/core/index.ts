@@ -18,7 +18,7 @@
  *   - generator.ts  fair tray generator (generosity bias)
  *   - undo.ts       unlimited undo stack
  *   - serialize.ts  validate saved data back into a GameState
- *   - solver.ts     (later) solvability check for generated levels
+ *   - levels.ts     seeded level generation, solvable by construction
  */
 export * from './game.ts';
 export { createRng } from './rng.ts';
@@ -28,3 +28,12 @@ export { cellAt } from './grid.ts';
 export { createHistory, commit, undo, canUndo } from './undo.ts';
 export type { History } from './undo.ts';
 export { parseGameState, parseHistory } from './serialize.ts';
+export {
+  createLevel,
+  levelGenOptions,
+  levelParams,
+  levelPosition,
+  levelSeed,
+  LEVELS_PER_STAGE,
+} from './levels.ts';
+export type { Level, LevelMove, LevelParams, LevelPosition } from './levels.ts';

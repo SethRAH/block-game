@@ -77,6 +77,7 @@ src/
     generator.ts   Fair tray generator ("generosity" bias, fit guarantee)
     undo.ts        Unlimited undo (immutable snapshot stack)
     serialize.ts   Validates saved data back into a GameState
+    levels.ts      Seeded level generation (stages, difficulty, solvable by construction)
     rng.ts         Seeded RNG (the only source of randomness)
   ui/        The only layer that touches the DOM: rendering, drag, animation, sound
   pwa/       Local persistence (localStorage)
@@ -89,8 +90,8 @@ dev-log/     Team dev-log entries
 All randomness goes through the seeded RNG in `src/core/rng.ts`, so the same
 seed and the same moves always replay to the same game. The tests check three
 promises from the design doc: every refilled or swapped tray has a piece that
-fits, a seed reproduces the exact same game, and (still a `todo` until levels
-exist) every generated level is solvable.
+fits, a seed reproduces the exact same game, and every generated level is
+solvable (and short: a simulated player finishes levels 1–30 quickly).
 
 Contributor and agent conventions are in [`CLAUDE.md`](CLAUDE.md).
 
