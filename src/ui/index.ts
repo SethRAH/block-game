@@ -3,7 +3,8 @@
  * This is the ONLY layer allowed to touch the DOM. It reads from and drives
  * the pure logic in src/core, and persists via src/pwa.
  *
- * Layout (portrait, 100dvh): a top bar (big score, Undo, New), the 8×8 board
+ * Layout (portrait, 100dvh): a top bar (big centered score, small Undo/New in
+ * the corners), the 8×8 board
  * as a CSS grid of DOM cells (no canvas), and the tray of 3 slots below it.
  */
 import {
@@ -138,7 +139,9 @@ export function mount(root: HTMLElement): void {
   }
 
   function renderBar(): void {
-    scoreEl.textContent = String(history.present.score);
+    const score = String(history.present.score);
+    scoreEl.textContent = score;
+    scoreEl.style.setProperty('--digits', String(score.length)); // shrinks long scores to fit
     undoBtn.disabled = !canUndo(history);
   }
 
