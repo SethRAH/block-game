@@ -8,17 +8,27 @@
  * that it composes) land only after the API is frozen.
  *
  * ── Design constraints this API must satisfy ────────────────────────────────
- *  • Endless mode now, but shaped so a seeded *level* (a fixed starting board +
- *    a fixed piece sequence) can plug in later WITHOUT rewriting core. That is
- *    why `GameState` carries `seed` + `rngState`: endless draws pieces from the
- *    RNG on refill; a future level would instead carry a scripted sequence, but
- *    the state shape and `applyMove` signature stay identical.
+ *  • Endless mode now, but shaped so a seeded *level* can plug in later WITHOUT
+ *    rewriting core. Per the design doc (docs/design.md) a level is a seeded
+ *    starting board of pre-placed tiles whose goal is to clear them all. A
+ *    level reuses this exact `GameState` shape and the `applyMove` /
+ *    `swapTray` signatures: it just starts from a non-empty board. A win/goal
+ *    notion (e.g. an optional field on `GameState`, or a separate
+ *    `isLevelComplete(state)` predicate) will be added ADDITIVELY later — no
+ *    existing field or signature changes. Levels are not built now.
  *  • `GameState` is plain JSON (structurally cloneable / JSON round-trippable):
  *    no class instances, no functions, no Maps — so it saves to localStorage,
  *    restores after a reload, and snapshots cheaply for undo.
  *  • Every function returns NEW state; nothing here mutates its input.
- *  • NEVER losable: there is no "game over". The RESCUE RULE below guarantees a
- *    fitting piece always exists after every move.
+ *  • Deterministic: all randomness comes from the seeded RNG whose state is
+ *    stored in `rngState`. The same seed + the same sequence of moves
+ *    (placements AND swaps) reproduces the identical states. Undo is just
+ *    restoring an earlier snapshot, so it is deterministic too.
+ *  • NO piece rotation, anywhere. Pieces come pre-oriented.
+ *  • NEVER losable: there is no "game over". If the player gets stuck,
+ *    `isStuck` says so and the UI offers a visible "Swap pieces?" that calls
+ *    `swapTray`, which always yields a placeable piece. Undo is the other way
+ *    out. Score only ever goes up.
  */
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
@@ -118,7 +128,8 @@ export type MoveError =
 /**
  * A successful move's outcome. `clearedRows` / `clearedCols` are the indices
  * that became full and were cleared by THIS move (either may be empty); the UI
- * uses them to flash the cleared lines. `scoreDelta` is how much `score` rose.
+ * uses them to flash the cleared lines. `scoreDelta` is how much `score` rose;
+ * it is ALWAYS `>= 0` (score never goes down).
  */
 export interface MoveResult {
   readonly state: GameState;
@@ -135,39 +146,40 @@ export type ApplyMoveResult =
 // ── API ──────────────────────────────────────────────────────────────────────
 
 /**
- * Start a fresh endless game from `seed`. Produces an empty board, a full tray
- * of 3 fitting pieces, score 0, and `rngState` positioned after the initial
- * draw. The same seed always yields the identical starting state and (given the
- * same moves) the identical sequence of trays thereafter.
+ * Start a fresh endless game from `seed`. Produces an empty board, a full
+ * tray of 3 pieces from the fair generator, score 0, and `rngState` positioned
+ * after the initial draw. The same seed always yields the identical starting
+ * state and (given the same moves) the identical sequence of trays thereafter.
+ * No piece rotation.
  */
 export declare function newGame(seed: number): GameState;
 
 /**
  * Place the piece in tray `slot` with its top-left corner at board (`r`, `c`).
+ * The piece is placed exactly as oriented in the tray (no rotation).
  *
  * On success returns `{ ok: true, result }` with a NEW state in which:
  *  1. the piece's cells are written onto the board,
  *  2. then every row AND every column that is completely full is cleared
- *     (all directions; a single move can clear rows and columns at once),
+ *     (both directions; a single move can clear rows and columns at once),
  *  3. the slot is emptied; when all 3 slots are now empty the tray REFILLS
- *     (advancing `rngState`),
- *  4. the RESCUE RULE is applied (see below),
- *  5. `score` rises by `scoreDelta`.
+ *     from the fair generator (advancing `rngState`),
+ *  4. `score` rises by `scoreDelta` (always `>= 0`).
+ *
+ * `applyMove` NEVER swaps or alters the remaining tray pieces. If, after the
+ * move, none of them fit, the state is simply "stuck" — see {@link isStuck}
+ * and {@link swapTray}. (A freshly REFILLED tray always contains at least one
+ * fitting piece — that is the fair generator's guarantee — so being stuck can
+ * only happen with 1–2 leftover pieces.)
  *
  * On failure returns `{ ok: false, error }` and the caller keeps its old state.
- *
- * ── RESCUE RULE (the "no game over" guarantee) ──
- * After the board/clear/refill above, if NONE of the remaining tray pieces fit
- * anywhere on the board, one tray piece is swapped for the SMALLEST piece that
- * does fit. The 1×1 dot is the ultimate fallback and is ALWAYS placeable,
- * because a board with no room for a dot would be completely full — and a full
- * board clears every row, freeing space. (An invariant test asserts this.)
  *
  * ── Scoring (scoreDelta) ──
  *   + points per cell of the placed piece,
  *   + a per-line bonus for each row/column cleared,
  *   + a combo bonus that grows when several lines clear from one move.
- * Exact constants live with the implementation and may be tuned.
+ * Exact constants live with the implementation and may be tuned. Nothing ever
+ * subtracts score.
  */
 export declare function applyMove(
   state: GameState,
@@ -188,3 +200,48 @@ export declare function canPlaceAt(
   r: number,
   c: number,
 ): boolean;
+
+/**
+ * The rows and columns that WOULD clear if the piece in tray `slot` were
+ * placed at (`r`, `c`), without changing anything. The UI calls it during a
+ * drag to highlight lines that are about to clear. Returns `null` when the
+ * placement is not legal (same conditions as {@link canPlaceAt}).
+ */
+export declare function previewClears(
+  state: GameState,
+  slot: number,
+  r: number,
+  c: number,
+): { readonly rows: readonly number[]; readonly cols: readonly number[] } | null;
+
+/**
+ * True when NONE of the remaining (non-null) tray pieces can be placed
+ * anywhere on the board. The UI then shows a big, calm "Swap pieces?" button
+ * (which calls {@link swapTray}); undo stays available as the other way out.
+ * There is no game-over state.
+ */
+export declare function isStuck(state: GameState): boolean;
+
+/**
+ * The visible rescue: redraw every remaining (unused, non-null) tray slot from
+ * the RNG, GUARANTEEING that at least one of the new pieces fits. Already-used
+ * (`null`) slots stay `null`, so the tray's progress toward a refill is kept.
+ * If the fair draw yields no fit, one slot falls back to the SMALLEST piece
+ * that fits — ultimately the 1×1 dot.
+ *
+ * The dot always fits: a board is never left completely full, because filling
+ * the last empty cell completes every row and clears them all. (An invariant
+ * test asserts this.)
+ *
+ * `swapTray` is itself a MOVE:
+ *  • it returns a NEW state (board and score unchanged; `scoreDelta` is 0),
+ *    advancing `rngState`;
+ *  • the caller pushes the prior state onto the undo stack, so ONE undo
+ *    reverses it exactly;
+ *  • it is deterministic, so replaying the same seed + the same sequence of
+ *    placements and swaps reproduces the same trays.
+ *
+ * It is intended for when {@link isStuck} is true, but is well-defined at any
+ * time (it never fails).
+ */
+export declare function swapTray(state: GameState): GameState;
