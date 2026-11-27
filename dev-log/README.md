@@ -12,3 +12,4 @@ A short, dated record of what the team built and why, one entry per milestone.
 ## Entries
 
 - [2026-11-27: Block Game prototype, idea to ship](2026-11-27-block-game-prototype.md)
+- [2026-11-27: First playtest](2026-11-27-first-playtest.md)
