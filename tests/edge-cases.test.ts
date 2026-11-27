@@ -391,11 +391,12 @@ describe('long undo chains', () => {
 describe('parseGameState / parseHistory edge cases', () => {
   const valid = (): GameState => ok(applyMove(newGame(4), 0, 0, 0)).state;
 
-  it('accepts boundary-valid values: rngState 0 and 0xffffffff, negative seed, max palette index', () => {
+  it('accepts boundary-valid values: rngState 0 and 0xffffffff, negative seed, max palette index, GOAL', () => {
     // Arrange
     const s = valid();
     const board = s.board.slice();
     board[63] = 8; // PALETTE_SIZE
+    board[62] = 9; // GOAL (a level goal tile)
     const cases = [
       { ...s, rngState: 0 },
       { ...s, rngState: 0xffffffff },
@@ -419,7 +420,7 @@ describe('parseGameState / parseHistory edge cases', () => {
     const bad: unknown[] = [
       { ...s, rngState: -1 },
       { ...s, rngState: 0x100000000 },
-      { ...s, board: withCell(9) }, // PALETTE_SIZE + 1
+      { ...s, board: withCell(10) }, // GOAL + 1 (GOAL = PALETTE_SIZE + 1 is valid)
       { ...s, board: withCell(-1) },
       { ...s, board: withCell(0.5) },
       { ...s, board: withCell('1') },

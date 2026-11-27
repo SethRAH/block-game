@@ -58,6 +58,7 @@ import {
   pieceInBounds,
   place,
 } from './grid.ts';
+import { GOAL } from './pieces.ts';
 import { createRng } from './rng.ts';
 
 // ── Scoring constants (tunable; not part of the frozen API) ─────────────────
@@ -373,4 +374,6 @@ export const LEVEL_GEN_VERSION = 1;
  * cleared and the level is won. Pure; a board that never had goals (endless)
  * is trivially "complete", so callers only ask it of a level.
  */
-export declare function isLevelComplete(state: GameState): boolean;
+export function isLevelComplete(state: GameState): boolean {
+  return !state.board.includes(GOAL);
+}

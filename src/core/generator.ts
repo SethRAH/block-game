@@ -19,7 +19,7 @@
 import { BOARD_SIZE } from './constants.ts';
 import type { Board, Piece, TraySlot } from './game.ts';
 import { canPlace, fitsAnywhere } from './grid.ts';
-import { DOT, PIECES } from './pieces.ts';
+import { DOT, GOAL, PIECES } from './pieces.ts';
 import type { Rng } from './rng.ts';
 
 /**
@@ -50,19 +50,25 @@ export const DEFAULT_GOAL_BIAS = 0;
  * 1 + the best, over all legal placements, of (lines it would complete +
  * 0.25 × lines it would leave one cell short of full + `goalBias` × completed
  * lines that contain a GOAL tile). With `goalBias` 0 (the default) this is
- * exactly the endless scoring.
+ * exactly the endless scoring. Being part of helpfulness, the goal bonus is
+ * scaled by `generosity` like the rest (generosity 0 stays uniform).
  */
 export function helpfulness(board: Board, piece: Piece, goalBias: number = DEFAULT_GOAL_BIAS): number {
-  void goalBias; // goal-line bias lands after the API freeze
   // Empty-cell counts per row / column, so each placement is scored without
-  // copying the board.
+  // copying the board; plus which rows / columns hold a goal tile.
   const rowEmpty = new Array<number>(BOARD_SIZE).fill(0);
   const colEmpty = new Array<number>(BOARD_SIZE).fill(0);
+  const rowGoal = new Array<boolean>(BOARD_SIZE).fill(false);
+  const colGoal = new Array<boolean>(BOARD_SIZE).fill(false);
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      if (board[r * BOARD_SIZE + c] === 0) {
+      const v = board[r * BOARD_SIZE + c];
+      if (v === 0) {
         rowEmpty[r]!++;
         colEmpty[c]!++;
+      } else if (v === GOAL) {
+        rowGoal[r] = true;
+        colGoal[c] = true;
       }
     }
   }
@@ -79,8 +85,16 @@ export function helpfulness(board: Board, piece: Piece, goalBias: number = DEFAU
     for (let c = 0; c <= BOARD_SIZE - piece.w; c++) {
       if (!canPlace(board, piece, r, c)) continue;
       let gain = 0;
-      for (let i = 0; i < piece.h; i++) gain += lineGain(rowEmpty[r + i]! - inRow[i]!);
-      for (let j = 0; j < piece.w; j++) gain += lineGain(colEmpty[c + j]! - inCol[j]!);
+      for (let i = 0; i < piece.h; i++) {
+        const left = rowEmpty[r + i]! - inRow[i]!;
+        gain += lineGain(left);
+        if (left === 0 && rowGoal[r + i]) gain += goalBias;
+      }
+      for (let j = 0; j < piece.w; j++) {
+        const left = colEmpty[c + j]! - inCol[j]!;
+        gain += lineGain(left);
+        if (left === 0 && colGoal[c + j]) gain += goalBias;
+      }
       if (gain > best) best = gain;
     }
   }
@@ -95,9 +109,11 @@ function lineGain(emptyAfter: number): number {
 }
 
 /** Draw weight of every catalog piece for this board (computed once per tray). */
-function weightsFor(board: Board, generosity: number): number[] {
+function weightsFor(board: Board, opts: GeneratorOptions): number[] {
+  const generosity = opts.generosity ?? DEFAULT_GENEROSITY;
+  const goalBias = opts.goalBias ?? DEFAULT_GOAL_BIAS;
   return PIECES.map((p) => {
-    const h = helpfulness(board, p);
+    const h = helpfulness(board, p, goalBias);
     return h === 0 ? 1 : 1 + generosity * h;
   });
 }
@@ -135,7 +151,7 @@ function ensureFit(board: Board, slots: TraySlot[], candidates: readonly number[
 
 /** A full new tray of 3 pieces, at least one of which fits. */
 export function drawTray(board: Board, rng: Rng, opts: GeneratorOptions = {}): TraySlot[] {
-  const w = weightsFor(board, opts.generosity ?? DEFAULT_GENEROSITY);
+  const w = weightsFor(board, opts);
   const slots: TraySlot[] = [0, 1, 2].map(() => drawWeighted(w, rng));
   ensureFit(board, slots, [0, 1, 2], rng);
   return slots;
@@ -153,7 +169,7 @@ export function redrawTray(
 ): TraySlot[] {
   const live = tray.flatMap((p, i) => (p === null ? [] : [i]));
   if (live.length === 0) return drawTray(board, rng, opts);
-  const w = weightsFor(board, opts.generosity ?? DEFAULT_GENEROSITY);
+  const w = weightsFor(board, opts);
   const slots = tray.slice();
   for (const i of live) slots[i] = drawWeighted(w, rng);
   ensureFit(board, slots, live, rng);

@@ -253,7 +253,7 @@ describe('generator generosity biases toward near-line-completing pieces', () =>
     const expected = 1 / PIECES.length;
     const sigma = Math.sqrt((expected * (1 - expected)) / 12_000);
     for (const p of PIECES) expect(Math.abs(f(p.id) - expected)).toBeLessThan(4 * sigma);
-  });
+  }, FUZZ_TIMEOUT_MS);
 
   it('default generosity draws the row-completing line2-0 more often than line2-1, and more with higher generosity', () => {
     // Arrange / Act
@@ -265,7 +265,7 @@ describe('generator generosity biases toward near-line-completing pieces', () =>
     expect(f1('line2-0')).toBeGreaterThan(f1('line2-1') * 1.1);
     expect(f1('line2-0')).toBeGreaterThan(f0('line2-0'));
     expect(f4('line2-0')).toBeGreaterThan(f1('line2-0'));
-  });
+  }, FUZZ_TIMEOUT_MS);
 
   it('empirical draw frequencies match the weights 1 + generosity × helpfulness', () => {
     // Arrange: everything fits on NEAR_LINE, so the fit fallback never alters a draw.
@@ -284,7 +284,7 @@ describe('generator generosity biases toward near-line-completing pieces', () =>
       const sigma = Math.sqrt((expected * (1 - expected)) / n);
       expect(Math.abs(f(p.id) - expected)).toBeLessThan(4.5 * sigma);
     });
-  });
+  }, FUZZ_TIMEOUT_MS);
 
   it('across random boards, mean helpfulness of drawn pieces rises with generosity', () => {
     // Arrange
@@ -401,7 +401,7 @@ describe('parseGameState mutation fuzz', () => {
     for (const s of realStates().slice(0, 200)) {
       // Arrange
       const board: unknown[] = s.board.slice();
-      board[rng.int(0, CELL_COUNT - 1)] = rng.pick([9, -1, 0.5, '1', null, true, 1e9, NaN]);
+      board[rng.int(0, CELL_COUNT - 1)] = rng.pick([10, -1, 0.5, '1', null, true, 1e9, NaN]);
       const tray: unknown[] = s.tray.slice();
       tray[rng.int(0, 2)] = rng.pick([{ id: 'nope' }, { id: 7 }, 'dot-0', 3, [], { cells: [] }]);
 

@@ -10,6 +10,7 @@ import {
   swapTray,
   undo,
   type GameState,
+  type GeneratorOptions,
   type History,
   type Piece,
   type Rng,
@@ -47,11 +48,14 @@ export type Action =
   | { readonly kind: 'swap' }
   | { readonly kind: 'undo' };
 
-/** Apply one action to a history (throws if a placement is rejected). */
-export function act(h: History, a: Action): History {
+/**
+ * Apply one action to a history (throws if a placement is rejected). `gen` is
+ * the game's generator options, threaded into every move (omit for endless).
+ */
+export function act(h: History, a: Action, gen?: GeneratorOptions): History {
   if (a.kind === 'undo') return undo(h);
-  if (a.kind === 'swap') return commit(h, swapTray(h.present));
-  const res = applyMove(h.present, a.slot, a.r, a.c);
+  if (a.kind === 'swap') return commit(h, swapTray(h.present, gen));
+  const res = applyMove(h.present, a.slot, a.r, a.c, gen);
   if (!res.ok) throw new Error(`rejected ${JSON.stringify(a)}: ${res.error}`);
   return commit(h, res.result.state);
 }
@@ -77,14 +81,19 @@ export function chooseAction(h: History, pick: Rng): Action {
 }
 
 /** Play `steps` random actions from `start`; returns the recorded script. */
-export function randomScript(start: GameState, steps: number, driverSeed: number): Action[] {
+export function randomScript(
+  start: GameState,
+  steps: number,
+  driverSeed: number,
+  gen?: GeneratorOptions,
+): Action[] {
   const pick = createRng(driverSeed);
   let h = createHistory(start);
   const script: Action[] = [];
   for (let i = 0; i < steps; i++) {
     const a = chooseAction(h, pick);
     script.push(a);
-    h = act(h, a);
+    h = act(h, a, gen);
   }
   return script;
 }
