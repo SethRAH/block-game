@@ -8,7 +8,7 @@
  */
 import { CELL_COUNT, TRAY_SIZE } from './constants.ts';
 import type { GameState, TraySlot } from './game.ts';
-import { PALETTE_SIZE, pieceById } from './pieces.ts';
+import { GOAL, pieceById } from './pieces.ts';
 import type { History } from './undo.ts';
 
 function isUint32(x: unknown): x is number {
@@ -21,7 +21,8 @@ export function parseGameState(x: unknown): GameState | null {
   const { board, tray, score, seed, rngState } = o;
 
   if (!Array.isArray(board) || board.length !== CELL_COUNT) return null;
-  if (!board.every((v) => Number.isInteger(v) && v >= 0 && v <= PALETTE_SIZE)) return null;
+  // 0 = empty, 1..PALETTE_SIZE = a placed piece's color, GOAL = a level goal tile.
+  if (!board.every((v) => Number.isInteger(v) && v >= 0 && v <= GOAL)) return null;
   if (board.every((v) => v !== 0)) return null; // never a full board
   if (typeof score !== 'number' || !Number.isInteger(score) || score < 0) return null;
   if (typeof seed !== 'number' || !Number.isInteger(seed)) return null;

@@ -111,19 +111,26 @@ export declare function clearLevel(): void;
 /**
  * Player progress. Rewards are generic ids so the reward system can grow
  * without a format change.
- *  • `level`    — the highest level unlocked (1-based; the next to play).
- *  • `stars`    — cumulative stars earned.
- *  • `unlocked` — ids of rewards earned (stickers, themes, backgrounds…),
- *                 no duplicates.
+ *  • `level`     — the highest level unlocked (1-based; the next to play).
+ *  • `bestStars` — the BEST star count earned on each level, keyed by level
+ *                  number (as a string, so it stays plain JSON). Storing the
+ *                  best per level, not a running total, means replaying a
+ *                  level can never double-count; the total is derived by
+ *                  {@link totalStars}.
+ *  • `unlocked`  — ids of rewards earned (stickers, themes, backgrounds…),
+ *                  no duplicates.
  */
 export interface SaveData {
   readonly level: number;
-  readonly stars: number;
+  readonly bestStars: Readonly<Record<string, number>>;
   readonly unlocked: readonly string[];
 }
 
 /** Progress for a brand-new player. */
-export const DEFAULT_SAVE: SaveData = { level: 1, stars: 0, unlocked: [] };
+export const DEFAULT_SAVE: SaveData = { level: 1, bestStars: {}, unlocked: [] };
+
+/** Cumulative stars: the sum of the best stars on every level. */
+export declare function totalStars(data: SaveData): number;
 
 /**
  * Validate untrusted data into {@link SaveData}: shape, integer ranges, and a
