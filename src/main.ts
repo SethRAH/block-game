@@ -1,5 +1,6 @@
 import './style.css';
-import { mount } from './ui/index.ts';
+import { blockZoomGestures, mount } from './ui/index.ts';
 
+blockZoomGestures();
 const root = document.querySelector<HTMLDivElement>('#app');
 if (root) mount(root);

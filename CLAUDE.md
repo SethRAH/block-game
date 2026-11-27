@@ -17,6 +17,8 @@ features, single player, offline. See the design doc for product detail.
 - `npm test` / `npm run test:watch` — unit tests.
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — typecheck + production build to `dist/`.
+- The service worker is OFF under `npm run dev` (so phone testing never serves stale
+  code). To check install/offline behaviour: `npm run build && npm run preview`.
 
 ## Architecture: keep logic pure, away from the DOM
 

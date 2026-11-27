@@ -11,8 +11,10 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      // Lets you verify install + offline behaviour with `npm run dev`.
-      devOptions: { enabled: true },
+      // Service worker OFF in `npm run dev` so phone testing over the LAN never
+      // serves stale cached code. Verify install/offline with `npm run build`
+      // + `npm run preview` instead (or flip this to true temporarily).
+      devOptions: { enabled: false },
       includeAssets: ['favicon.svg'],
       manifest: {
         name: 'Block Game',
@@ -20,7 +22,7 @@ export default defineConfig({
         description: 'A friendly block puzzle game.',
         theme_color: '#1e293b',
         background_color: '#1e293b',
-        display: 'fullscreen',
+        display: 'standalone',
         orientation: 'portrait',
         start_url: base,
         scope: base,
