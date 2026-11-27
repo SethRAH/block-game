@@ -33,21 +33,44 @@
 
 // ── Dimensions ───────────────────────────────────────────────────────────────
 
-/** The board is 8×8. */
-export const BOARD_SIZE = 8;
+// BOARD_SIZE (8), CELL_COUNT (64) and TRAY_SIZE (3) live in constants.ts so
+// lower modules can import them without a cycle; they are re-exported here.
+export { BOARD_SIZE, CELL_COUNT, TRAY_SIZE } from './constants.ts';
 
-/** Number of cells on the board (64). */
-export const CELL_COUNT = BOARD_SIZE * BOARD_SIZE;
+import { TRAY_SIZE } from './constants.ts';
+import { drawTray, redrawTray } from './generator.ts';
+import {
+  canPlace,
+  clearLines,
+  emptyBoard,
+  findFullLines,
+  fitsAnywhere,
+  pieceInBounds,
+  place,
+} from './grid.ts';
+import { createRng } from './rng.ts';
 
-/** The tray holds 3 pieces; it refills once all 3 are used. */
-export const TRAY_SIZE = 3;
+// ── Scoring constants (tunable; not part of the frozen API) ─────────────────
+/** Points for each cell of a placed piece. */
+export const POINTS_PER_CELL = 1;
+/** Bonus for each row or column cleared. */
+export const POINTS_PER_LINE = 10;
+/** Extra combo bonus: COMBO_STEP × n × (n − 1) for n lines cleared at once. */
+export const COMBO_STEP = 5;
+
+/** Score gained for placing `cells` cells and clearing `lines` lines. */
+export function scoreFor(cells: number, lines: number): number {
+  return cells * POINTS_PER_CELL + lines * POINTS_PER_LINE + COMBO_STEP * lines * Math.max(0, lines - 1);
+}
 
 // ── Primitive types ──────────────────────────────────────────────────────────
 
 /**
  * One board cell. `0` = empty. A positive integer = filled, and its value is a
- * color id (purely cosmetic, chosen from the placed piece) so the UI can tint
- * settled blocks. Cleared cells go back to `0`.
+ * theme-agnostic PALETTE INDEX (from the placed piece's `color`), never a
+ * concrete CSS color: the UI maps index → color, so color themes can change
+ * without migrating saved games, while settled-block colors still survive
+ * reload / undo / replay. Cleared cells go back to `0`.
  */
 export type Cell = number;
 
@@ -70,8 +93,9 @@ export interface Coord {
  *
  * `cells` are offsets normalized so the shape's bounding box starts at (0,0)
  * — i.e. `min r == 0` and `min c == 0`. `w`/`h` are that bounding box, handy
- * for laying out a tray slot. `color` is the cosmetic color id written into
- * each occupied board cell when the piece is placed.
+ * for laying out a tray slot. `color` is the theme-agnostic palette index
+ * (positive integer, never a CSS color) written into each occupied board cell
+ * when the piece is placed.
  *
  * `id` identifies the oriented shape (e.g. "L4-0", "line3-v"); the exact
  * catalog lives in pieces.ts and may be tuned without changing this API.
@@ -126,15 +150,25 @@ export type MoveError =
   | 'overlap';
 
 /**
- * A successful move's outcome. `clearedRows` / `clearedCols` are the indices
- * that became full and were cleared by THIS move (either may be empty); the UI
- * uses them to flash the cleared lines. `scoreDelta` is how much `score` rose;
- * it is ALWAYS `>= 0` (score never goes down).
+ * A set of full lines: row indices and column indices (either may be empty).
+ * The one spelling used everywhere on the public surface — both for lines a
+ * move actually cleared ({@link MoveResult}) and lines a placement WOULD clear
+ * ({@link previewClears}).
+ */
+export interface ClearedLines {
+  readonly rows: readonly number[];
+  readonly cols: readonly number[];
+}
+
+/**
+ * A successful move's outcome. `cleared` holds the rows/columns that became
+ * full and were cleared by THIS move; the UI uses them to animate the clear.
+ * `scoreDelta` is how much `score` rose; it is ALWAYS `>= 0` (score never goes
+ * down).
  */
 export interface MoveResult {
   readonly state: GameState;
-  readonly clearedRows: readonly number[];
-  readonly clearedCols: readonly number[];
+  readonly cleared: ClearedLines;
   readonly scoreDelta: number;
 }
 
@@ -152,7 +186,12 @@ export type ApplyMoveResult =
  * state and (given the same moves) the identical sequence of trays thereafter.
  * No piece rotation.
  */
-export declare function newGame(seed: number): GameState;
+export function newGame(seed: number): GameState {
+  const rng = createRng(seed);
+  const board = emptyBoard();
+  const tray = drawTray(board, rng);
+  return { board, tray, score: 0, seed, rngState: rng.getState() };
+}
 
 /**
  * Place the piece in tray `slot` with its top-left corner at board (`r`, `c`).
@@ -181,25 +220,53 @@ export declare function newGame(seed: number): GameState;
  * Exact constants live with the implementation and may be tuned. Nothing ever
  * subtracts score.
  */
-export declare function applyMove(
-  state: GameState,
-  slot: number,
-  r: number,
-  c: number,
-): ApplyMoveResult;
+export function applyMove(state: GameState, slot: number, r: number, c: number): ApplyMoveResult {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= TRAY_SIZE) return { ok: false, error: 'invalid-slot' };
+  const piece = state.tray[slot];
+  if (!piece) return { ok: false, error: 'empty-slot' };
+  if (!pieceInBounds(piece, r, c)) return { ok: false, error: 'out-of-bounds' };
+  if (!canPlace(state.board, piece, r, c)) return { ok: false, error: 'overlap' };
+
+  const placed = place(state.board, piece, r, c);
+  const lines = findFullLines(placed);
+  const board = clearLines(placed, lines);
+  const scoreDelta = scoreFor(piece.cells.length, lines.rows.length + lines.cols.length);
+
+  let tray: TraySlot[] = state.tray.slice();
+  tray[slot] = null;
+  let rngState = state.rngState;
+  if (tray.every((p) => p === null)) {
+    const rng = createRng(state.seed, state.rngState);
+    tray = drawTray(board, rng);
+    rngState = rng.getState();
+  }
+
+  return {
+    ok: true,
+    result: {
+      state: { board, tray, score: state.score + scoreDelta, seed: state.seed, rngState },
+      cleared: lines,
+      scoreDelta,
+    },
+  };
+}
 
 /**
  * Whether the piece in tray `slot` can legally be placed with its top-left at
  * board (`r`, `c`) — i.e. {@link applyMove} would succeed. Pure and cheap; the
  * UI calls it continuously during a drag to color the ghost preview green/red.
  * Returns `false` (never throws) for an invalid or empty slot.
+ *
+ * `canPlaceAt`, {@link previewClears} and {@link applyMove} always agree:
+ * `canPlaceAt` is true exactly when `applyMove` succeeds, and when several
+ * failures apply `applyMove` reports them in fixed precedence
+ * `invalid-slot` → `empty-slot` → `out-of-bounds` → `overlap`.
  */
-export declare function canPlaceAt(
-  state: GameState,
-  slot: number,
-  r: number,
-  c: number,
-): boolean;
+export function canPlaceAt(state: GameState, slot: number, r: number, c: number): boolean {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= TRAY_SIZE) return false;
+  const piece = state.tray[slot];
+  return !!piece && canPlace(state.board, piece, r, c);
+}
 
 /**
  * The rows and columns that WOULD clear if the piece in tray `slot` were
@@ -207,12 +274,16 @@ export declare function canPlaceAt(
  * drag to highlight lines that are about to clear. Returns `null` when the
  * placement is not legal (same conditions as {@link canPlaceAt}).
  */
-export declare function previewClears(
+export function previewClears(
   state: GameState,
   slot: number,
   r: number,
   c: number,
-): { readonly rows: readonly number[]; readonly cols: readonly number[] } | null;
+): ClearedLines | null {
+  if (!canPlaceAt(state, slot, r, c)) return null;
+  const piece = state.tray[slot]!;
+  return findFullLines(place(state.board, piece, r, c));
+}
 
 /**
  * True when NONE of the remaining (non-null) tray pieces can be placed
@@ -220,7 +291,12 @@ export declare function previewClears(
  * (which calls {@link swapTray}); undo stays available as the other way out.
  * There is no game-over state.
  */
-export declare function isStuck(state: GameState): boolean;
+export function isStuck(state: GameState): boolean {
+  const live = state.tray.filter((p): p is Piece => p !== null);
+  // An all-empty tray is never "stuck" (applyMove always refills it).
+  if (live.length === 0) return false;
+  return !live.some((p) => fitsAnywhere(state.board, p));
+}
 
 /**
  * The visible rescue: redraw every remaining (unused, non-null) tray slot from
@@ -234,7 +310,7 @@ export declare function isStuck(state: GameState): boolean;
  * test asserts this.)
  *
  * `swapTray` is itself a MOVE:
- *  • it returns a NEW state (board and score unchanged; `scoreDelta` is 0),
+ *  • it returns a NEW state (board and score unchanged),
  *    advancing `rngState`;
  *  • the caller pushes the prior state onto the undo stack, so ONE undo
  *    reverses it exactly;
@@ -244,4 +320,8 @@ export declare function isStuck(state: GameState): boolean;
  * It is intended for when {@link isStuck} is true, but is well-defined at any
  * time (it never fails).
  */
-export declare function swapTray(state: GameState): GameState;
+export function swapTray(state: GameState): GameState {
+  const rng = createRng(state.seed, state.rngState);
+  const tray = redrawTray(state.board, state.tray, rng);
+  return { ...state, tray, rngState: rng.getState() };
+}

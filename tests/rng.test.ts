@@ -43,3 +43,29 @@ describe('seeded rng', () => {
     expect([...s1].sort((x, y) => x - y)).toEqual(base);
   });
 });
+
+describe('seeded rng state', () => {
+  it('getState + createRng(seed, state) resumes the exact sequence', () => {
+    const a = createRng(5);
+    for (let i = 0; i < 10; i++) a.next();
+    const saved = a.getState();
+    const expected = Array.from({ length: 20 }, () => a.next());
+    const b = createRng(5, saved);
+    expect(Array.from({ length: 20 }, () => b.next())).toEqual(expected);
+  });
+
+  it('a fresh rng and one resumed from its initial state agree', () => {
+    const a = createRng(77);
+    const b = createRng(77, a.getState());
+    expect(Array.from({ length: 5 }, () => a.next())).toEqual(Array.from({ length: 5 }, () => b.next()));
+  });
+
+  it('getState is a uint32 (the saved-game format)', () => {
+    const a = createRng(3);
+    for (let i = 0; i < 100; i++) {
+      a.next();
+      const s = a.getState();
+      expect(Number.isInteger(s) && s >= 0 && s <= 0xffffffff).toBe(true);
+    }
+  });
+});
