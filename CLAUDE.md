@@ -41,8 +41,9 @@ generation is in core; the level UI isn't built yet); see `docs/design.md` ("Sta
 
 Why: the design doc (`docs/design.md`) makes three promises that are only enforceable if the logic is
 isolated and tested (see `tests/invariants.test.ts`):
-1. every generated level is solvable (by construction, in `src/core/levels.ts`) and
-   short (a simulated player finishes levels 1–30 quickly),
+1. every generated level is solvable (the perfect-player solver in
+   `src/core/solver.ts` wins it before `levels.ts` keeps it), ramps up across its
+   stage, and is short (a simulated player finishes levels 1–30 quickly),
 2. every refilled or swapped tray contains at least one piece that fits (the "no
    game over" guarantee),
 3. a level number reproduces the exact same level (golden snapshots in

@@ -1,5 +1,8 @@
 /**
- * A seeded simulated player for levels: the "does this level drag?" yardstick.
+ * playtest.ts — a seeded simulated YOUNG player (pure; no DOM, storage or
+ * timers): the "does this level drag?" yardstick. createLevel playtests every
+ * candidate layout with it, and the anti-slog test (tests/invariants.test.ts)
+ * replays it on unseen seeds.
  *
  * Model of a young player: on each placement, with probability `focus` she
  * makes the best-looking move (see {@link moveValue}), otherwise she drops a
@@ -7,18 +10,18 @@
  * not a placement).
  * `focus = 0` is a purely random player; `focus = 1` is greedy.
  */
+import { BOARD_SIZE } from './constants.ts';
 import {
   applyMove,
-  BOARD_SIZE,
-  createRng,
   GOAL,
   isLevelComplete,
   isStuck,
   swapTray,
   type GameState,
   type GeneratorOptions,
-} from '../src/core/index.ts';
-import { placements } from '../src/core/grid.ts';
+} from './game.ts';
+import { placements } from './grid.ts';
+import { createRng } from './rng.ts';
 
 interface Candidate {
   readonly slot: number;

@@ -77,7 +77,9 @@ src/
     generator.ts   Fair tray generator ("generosity" bias, fit guarantee)
     undo.ts        Unlimited undo (immutable snapshot stack)
     serialize.ts   Validates saved data back into a GameState
-    levels.ts      Seeded level generation (stages, difficulty, solvable by construction)
+    levels.ts      Seeded level generation (the per-stage difficulty curve)
+    solver.ts      Perfect player: proves each level solvable, counts its moves
+    playtest.ts    Simulated young player: keeps levels from dragging
     rng.ts         Seeded RNG (the only source of randomness)
   ui/        The only layer that touches the DOM: rendering, drag, animation, sound
   pwa/       Local persistence (localStorage)

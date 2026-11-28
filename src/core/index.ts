@@ -19,6 +19,7 @@
  *   - undo.ts       unlimited undo stack
  *   - serialize.ts  validate saved data back into a GameState
  *   - levels.ts     seeded level generation, solvable by construction
+ *   - solver.ts     the perfect player that measures and proves each level
  */
 export * from './game.ts';
 export { createRng } from './rng.ts';
@@ -37,3 +38,5 @@ export {
   LEVELS_PER_STAGE,
 } from './levels.ts';
 export type { Level, LevelMove, LevelParams, LevelPosition } from './levels.ts';
+export { solveLevel } from './solver.ts';
+export type { SolverMove } from './solver.ts';
