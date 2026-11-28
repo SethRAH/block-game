@@ -1,6 +1,7 @@
 /** Shared test helpers: board builders and a seeded random "player". */
 import {
   applyMove,
+  createLevel,
   BOARD_SIZE,
   canUndo,
   commit,
@@ -12,6 +13,7 @@ import {
   type GameState,
   type GeneratorOptions,
   type History,
+  type Level,
   type Piece,
   type Rng,
   type Tray,
@@ -96,4 +98,34 @@ export function randomScript(
     h = act(h, a, gen);
   }
   return script;
+}
+
+/** 32-bit FNV-1a of a string, as 8 hex digits — the one hash for every golden snapshot. */
+export function fnv(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/** Golden hash of a whole level (every field). */
+export const levelHash = (level: Level): string => fnv(JSON.stringify(level));
+
+const levelCache = new Map<number, Level>();
+
+/**
+ * createLevel(n), memoized per test file (generating a level runs the perfect
+ * player and playtests, ~tens of ms). Returns a deep copy, so a test that
+ * mutates it can't affect another. Tests about createLevel itself call it
+ * directly.
+ */
+export function cachedLevel(n: number): Level {
+  let level = levelCache.get(n);
+  if (!level) {
+    level = createLevel(n);
+    levelCache.set(n, level);
+  }
+  return structuredClone(level);
 }

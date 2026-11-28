@@ -26,7 +26,7 @@ import {
   type Rng,
 } from '../src/core/index.ts';
 import { drawTray, helpfulness, redrawTray } from '../src/core/generator.ts';
-import { act, anyFits, chooseAction, piece, randomScript, stateWith } from './helpers.ts';
+import { act, anyFits, chooseAction, fnv, piece, randomScript, stateWith } from './helpers.ts';
 
 /** Build a board from 8 strings: 'G' goal tile, '#' palette 1, '.' empty. */
 function goalBoard(rows: readonly string[]): number[] {
@@ -231,16 +231,6 @@ describe('generator goal-line bias', () => {
 });
 
 // ── Endless unchanged ───────────────────────────────────────────────────────
-
-/** FNV-1a of a string, for compact golden snapshots. */
-function fnv(s: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
-}
 
 describe('endless mode is unchanged by level support', () => {
   it('reproduces the exact pre-levels game for 8 seeds × 120 random moves (golden, captured on main)', SLOW, () => {

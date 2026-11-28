@@ -27,8 +27,8 @@ The single most important rule. Three layers:
 
 - **`src/core/`** — pure game rules. **No DOM, no rendering, no storage, no timers.**
   Must run and be unit-tested in plain Node. This is where grid state, piece
-  placement, line clearing, the generator, and undo live (and the level solver,
-  once levels are built). `src/core/game.ts` is the public API the UI and tests
+  placement, line clearing, the generator, undo, and level generation
+  (`levels.ts`) live. `src/core/game.ts` is the public API the UI and tests
   build against; change its existing signatures only deliberately, and add
   level support additively.
 - **`src/ui/`** — the only layer allowed to touch the DOM: rendering, drag input,
@@ -36,16 +36,19 @@ The single most important rule. Three layers:
 - **`src/pwa/`** — local persistence (localStorage). The service worker and
   manifest come from vite-plugin-pwa (`vite.config.ts`), not from code here.
 
-Shipped today: endless mode only. Levels/stages are the planned next step; see
-`docs/design.md` ("Status").
+Shipped today: endless mode only. Levels/stages are the planned next step (level
+generation is in core; the level UI isn't built yet); see `docs/design.md` ("Status").
 
 Why: the design doc (`docs/design.md`) makes three promises that are only enforceable if the logic is
 isolated and tested (see `tests/invariants.test.ts`):
-1. every generated level is solvable (still `it.todo` — levels aren't built yet),
+1. every generated level is solvable (the perfect-player solver in
+   `src/core/solver.ts` wins it before `levels.ts` keeps it), ramps up across its
+   stage, and is short (a simulated player finishes levels 1–30 quickly),
 2. every refilled or swapped tray contains at least one piece that fits (the "no
    game over" guarantee),
-3. a level number reproduces the exact same level (today: the same seed + the same
-   moves reproduce the same game).
+3. a level number reproduces the exact same level (golden snapshots in
+   `tests/level-gen.test.ts`; changing a level means bumping `LEVEL_GEN_VERSION`
+   and regenerating them on purpose).
 
 ## Conventions
 

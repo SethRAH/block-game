@@ -367,7 +367,7 @@ export function swapTray(state: GameState, gen: GeneratorOptions = {}): GameStat
  * in-progress level records the version it was generated with; a mismatch
  * means the save cannot be trusted to match its number and is discarded.
  */
-export const LEVEL_GEN_VERSION = 1;
+export const LEVEL_GEN_VERSION = 2;
 
 /**
  * True when the board holds no {@link GOAL} tile — every goal has been
